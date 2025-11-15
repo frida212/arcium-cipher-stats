@@ -1,6 +1,10 @@
 import { useEffect, useState } from "react";
 import { MetricCard } from "@/components/MetricCard";
-import { TrendingUp, Activity, DollarSign, Zap } from "lucide-react";
+import { TrendingUp, Activity, DollarSign, Zap, WifiOff } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
+
+// Toggle this to switch between Arcium integration and mock data
+const USE_ARCIUM = false; // Set to true when your Arcium MXE is deployed
 
 type MarketStats = {
   total_volume: number;
@@ -22,19 +26,67 @@ function generateMockStats(): MarketStats {
 const Index = () => {
   const [stats, setStats] = useState<MarketStats | null>(null);
   const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
+  const [isConnected, setIsConnected] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const { toast } = useToast();
 
   useEffect(() => {
-    // Initial load
-    setStats(generateMockStats());
-    
-    // Update every 5 seconds to simulate real-time data
-    const interval = setInterval(() => {
-      setStats(generateMockStats());
-      setLastUpdate(new Date());
-    }, 5000);
+    const initializeData = async () => {
+      if (USE_ARCIUM) {
+        try {
+          // When you enable USE_ARCIUM, import and use the Arcium service here
+          // const { fetchArciumMarketStats, subscribeToArciumUpdates } = await import('@/services/arcium');
+          // const arciumStats = await fetchArciumMarketStats();
+          // setStats(arciumStats);
+          // setIsConnected(true);
+          
+          toast({
+            title: "Arcium Integration Ready",
+            description: "Uncomment the Arcium service imports to enable live data",
+          });
+          
+          // For now, fallback to mock data
+          setStats(generateMockStats());
+          const interval = setInterval(() => {
+            setStats(generateMockStats());
+            setLastUpdate(new Date());
+          }, 5000);
+          
+          return () => clearInterval(interval);
+        } catch (err) {
+          console.error('Failed to connect to Arcium:', err);
+          setError(err instanceof Error ? err.message : 'Failed to connect');
+          setIsConnected(false);
+          
+          toast({
+            variant: "destructive",
+            title: "Arcium Connection Failed",
+            description: "Falling back to demo data. Check console for details.",
+          });
+          
+          // Fallback to mock data
+          setStats(generateMockStats());
+          const interval = setInterval(() => {
+            setStats(generateMockStats());
+            setLastUpdate(new Date());
+          }, 5000);
+          
+          return () => clearInterval(interval);
+        }
+      } else {
+        // Use mock data for demo/testing
+        setStats(generateMockStats());
+        const interval = setInterval(() => {
+          setStats(generateMockStats());
+          setLastUpdate(new Date());
+        }, 5000);
+        
+        return () => clearInterval(interval);
+      }
+    };
 
-    return () => clearInterval(interval);
-  }, []);
+    initializeData();
+  }, [toast]);
 
   if (!stats) {
     return (
@@ -59,8 +111,22 @@ const Index = () => {
               </p>
             </div>
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />
-              <span>Live</span>
+              {USE_ARCIUM && isConnected ? (
+                <>
+                  <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />
+                  <span>Arcium Live</span>
+                </>
+              ) : USE_ARCIUM && !isConnected ? (
+                <>
+                  <WifiOff className="w-4 h-4 text-destructive" />
+                  <span className="text-destructive">Offline</span>
+                </>
+              ) : (
+                <>
+                  <div className="w-2 h-2 rounded-full bg-accent animate-pulse" />
+                  <span>Demo Mode</span>
+                </>
+              )}
               <span className="text-muted-foreground/60">•</span>
               <span className="font-mono">
                 {lastUpdate.toLocaleTimeString()}
@@ -88,14 +154,28 @@ const Index = () => {
                 <path d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
               </svg>
             </div>
-            <div>
+            <div className="flex-1">
               <h3 className="font-semibold text-foreground mb-1">
-                Privacy-First Analytics
+                {USE_ARCIUM ? "Privacy-First Analytics via Arcium" : "Demo: Privacy-First Analytics"}
               </h3>
               <p className="text-sm text-muted-foreground">
-                All metrics are aggregate-only. No individual trades, orders, or user identities are ever exposed.
-                Powered by Arcium's confidential computing infrastructure.
+                {USE_ARCIUM ? (
+                  <>
+                    Connected to Arcium's encrypted supercomputer. All metrics are aggregate-only. 
+                    No individual trades, orders, or user identities are ever exposed.
+                  </>
+                ) : (
+                  <>
+                    Demo mode with simulated data. To connect to real Arcium network, configure your 
+                    MXE program address and set USE_ARCIUM=true in src/pages/Index.tsx
+                  </>
+                )}
               </p>
+              {error && (
+                <p className="text-sm text-destructive mt-2">
+                  Connection error: {error}
+                </p>
+              )}
             </div>
           </div>
         </div>
